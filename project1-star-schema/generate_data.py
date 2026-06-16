@@ -27,7 +27,7 @@ SELECT
     FLOOR(RANDOM() * 10   + 1)::INT                            AS quantity,
     ROUND((RANDOM() * 200 + 5)::NUMERIC, 2)                    AS unit_price,
     CASE WHEN RANDOM() < 0.05 THEN TRUE ELSE FALSE END         AS is_refunded
-FROM RANGE(300000)
+FROM RANGE(5000000)
 """)
 
 
