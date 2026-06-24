@@ -6,11 +6,11 @@ import os
 # Generates raw source tables simulating an e-commerce order system.
 # Produces 300k orders across 10k customers and 500 products (2022–2023).
 #
-# Output: data/finmart.duckdb
+# Output: data/project1_finmart.duckdb
 # Tables: raw_orders, raw_customers, raw_products
 # ---------------------------------------------------------------------------
 
-DB_PATH = "data/finmart.duckdb"
+DB_PATH = "data/project1_finmart.duckdb"
 os.makedirs("data", exist_ok=True)
 
 con = duckdb.connect(DB_PATH)

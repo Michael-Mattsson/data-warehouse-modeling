@@ -5,6 +5,11 @@
 -- analytical work. Run each pair under benchmark.py for repeated, averaged
 -- timing rather than a single EXPLAIN ANALYZE run.
 -- Source data: 5,000,000 row fct_orders (Project 1, scaled).
+
+-- The benchmark suite was designed to represent common analytical warehouse 
+-- workloads. These workload categories are consistent with those found in 
+-- decision-support benchmarks such as TPC-DS. This is a targeted workload, 
+-- not a comprehensive benchmark suite. TPC-DS uses 99 queries.
 -- =============================================================================
 
 
@@ -90,18 +95,21 @@ LIMIT 20;
 
 -- WIDE
 SELECT
-    region, segment, category,
-    SUM(net_revenue) AS revenue,
-    AVG(net_revenue) AS avg_revenue
+    region, 
+    segment, 
+    category,
+    SUM(net_revenue)                AS revenue,
+    AVG(net_revenue)                AS avg_revenue
 FROM wide_orders
 GROUP BY region, segment, category;
 
 -- NARROW
-
 SELECT
-    c.region, c.segment, p.category,
-    SUM(o.net_revenue) AS revenue,
-    AVG(o.net_revenue) AS avg_revenue
+    c.region, 
+    c.segment, 
+    p.category,
+    SUM(o.net_revenue)              AS revenue,
+    AVG(o.net_revenue)              AS avg_revenue
 FROM fct_orders o
 JOIN dim_customer c ON o.customer_key = c.customer_key
 JOIN dim_product  p ON o.product_key  = p.product_key

@@ -13,7 +13,7 @@ import os
 # ---------------------------------------------------------------------------
 
 
-DB_PATH = "data/finmart.duckdb"
+DB_PATH = "data/project1_finmart.duckdb"
 print("Database exists:", os.path.exists(DB_PATH))
 con = duckdb.connect(DB_PATH)
 
