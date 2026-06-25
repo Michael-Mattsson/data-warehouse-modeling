@@ -58,6 +58,8 @@ JOIN dim_customer c ON o.customer_key = c.customer_key
 JOIN dim_product  p ON o.product_key  = p.product_key
 """)
 
+print("Done. Benchmark database written to:", BENCHMARK_DB)
+
 # -----------------------------------------------------------------------
 # Post-build validation
 # -----------------------------------------------------------------------
