@@ -88,9 +88,9 @@ else:
     print(f"  wide_orders: {wide_count:,}")
     print("  Check wide_orders join conditions before running benchmark.")
 
-# Storage comparison
-print("\n--- Storage Comparison ---")
-storage = con.execute("""
+# Duplication Stats comparison
+print("\n--- Duplication Stats ---")
+duplication_stats = con.execute("""
     SELECT
         'wide_orders' AS table_name,
         COUNT(*) AS row_count,
@@ -102,7 +102,6 @@ storage = con.execute("""
     SELECT 'fct_orders', COUNT(*), NULL
     FROM fct_orders
 """).fetchdf()
-print(storage.to_string(index=False))
+print(duplication_stats.to_string(index=False))
 
-print(f"\nDone. Benchmark database written to: {BENCHMARK_DB}")
 con.close()

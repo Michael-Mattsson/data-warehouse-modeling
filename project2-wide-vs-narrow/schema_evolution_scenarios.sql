@@ -1,5 +1,5 @@
 -- =============================================================================
--- Schema Evolution Test
+-- Schema Evolution Scenarios
 -- =============================================================================
 -- Goal:
 -- Compare maintenance cost when business requirements change.
@@ -26,8 +26,6 @@ SET brand =
         ELSE                              'FashionCo'
     END;
 
--- dim_product = 500 rows
-
 -- WIDE SCHEMA
 ALTER TABLE dim_product
 ADD COLUMN brand VARCHAR;
@@ -52,8 +50,11 @@ SET brand = (
     WHERE p.product_id = w.product_id
 );
 
--- dim_product = 500 rows
--- wide_orders = 5,000,000 rows
+Rows updated
+Narrow:
+500
+Wide:
+5,000,000
 
 
 -- Change 2: Add new customer classification
@@ -68,8 +69,6 @@ SET customer_lifetime_segment =
         WHEN segment = 'Business'   THEN 'Medium Value'
         ELSE                             'Standard'
     END;
-
--- dim_customer = 10,000 rows
 
 -- WIDE SCHEMA
 ALTER TABLE dim_customer
@@ -94,8 +93,11 @@ SET customer_lifetime_segment = (
     WHERE c.customer_id = w.customer_id
 );
 
--- dim_customer = 10,000 rows
--- wide_orders = 5,000,000 rows
+Rows updated
+Narrow:
+10,000
+Wide:
+5,000,000
 
 
 -- Change 3: Replace Segment with Customer Tier (e.g., Bronze, Silver, Gold)
@@ -114,7 +116,7 @@ SET customer_tier =
 ALTER TABLE dim_customer
 DROP COLUMN segment;
 
--- dim_customer = 10,000 rows
+
 
 -- WIDE SCHEMA
 ALTER TABLE wide_orders
@@ -131,7 +133,11 @@ SET customer_tier =
 ALTER TABLE wide_orders
 DROP COLUMN segment;
 
--- wide_orders = 5,000,000 rows
+Rows updated
+Narrow:
+10,000
+Wide:
+5,000,000
 
 
 -- =============================================================================

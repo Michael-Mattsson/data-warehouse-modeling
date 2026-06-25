@@ -7,9 +7,9 @@
 -- Source data: 5,000,000 row fct_orders (Project 1, scaled).
 
 -- The benchmark suite was designed to represent common analytical warehouse 
--- workloads. These workload categories are consistent with those found in 
--- decision-support benchmarks such as TPC-DS. This is a targeted workload, 
--- not a comprehensive benchmark suite. TPC-DS uses 99 queries.
+-- workloads rather than synthetic microbenchmarks. These workload categories are 
+-- consistent with those found in decision-support benchmarks such as TPC-DS. This 
+-- is a targeted workload, not a comprehensive benchmark suite. TPC-DS uses 99 queries.
 -- =============================================================================
 
 

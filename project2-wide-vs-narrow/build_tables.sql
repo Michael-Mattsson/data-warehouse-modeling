@@ -11,7 +11,7 @@
 -- are rerun later.
 -- =============================================================================
 
-ATTACH '../data/finmart.duckdb' AS src_project1;
+ATTACH '../small-systems-projects/data/project1_finmart.duckdb' AS src_project1;
 
 -- -----------------------------------------------------------------------------
 -- Copy the star schema as-is — this is the "narrow" side of the comparison.
@@ -70,7 +70,7 @@ UNION ALL SELECT 'dim_product',   COUNT(*) FROM dim_product;
 -- Expect fct_orders and wide_orders to have identical row counts.
 
 -- -----------------------------------------------------------------------------
--- Dimension Attribute Redundancy Analysis
+-- Dimension Attribute Duplication Analysis
 -- -----------------------------------------------------------------------------
 
 SELECT

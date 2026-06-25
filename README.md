@@ -1,4 +1,4 @@
-# Section 2 — Warehouse Architecture & Modeling Systems
+# Warehouse Architecture & Modeling Systems
 
 Four production-focused modeling projects covering star schema design, 
 denormalization tradeoffs, SCD Type 2 history, and metric inflation debugging.
@@ -12,6 +12,20 @@ denormalization tradeoffs, SCD Type 2 history, and metric inflation debugging.
    temporal join patterns and inflation trap documentation
 4. **Metric Inflation** — root cause analysis of 35% revenue 
    overcount from many-to-many join, three fix approaches compared
+
+raw_orders
+      │
+      ▼
+Project 1
+fact_orders
+dim_customer
+dim_product
+dim_date
+      │
+      ▼
+Project 2
+wide_orders
+
 
 ## Stack
 DuckDB · SQL · Python (data generation) · Markdown (documentation)

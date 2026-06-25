@@ -138,7 +138,12 @@ for qname in queries:
     wide_t = results[qname]["wide"]["mean_ms"]
     narrow_t = results[qname]["narrow"]["mean_ms"]
     ratio = narrow_t / wide_t if wide_t else float("nan")
-    winner = "wide" if ratio > 1 else "narrow"
+    if abs(ratio - 1) < 0.02:
+        winner = "tie"
+    elif ratio > 1:
+        winner = "wide"
+    else:
+        winner = "narrow"
     print(f"{qname:<8} " f"{wide_t:>10.2f} " f"{narrow_t:>12.2f} "
           f"{ratio:>8.2f} " f"{winner:>8}")
 
