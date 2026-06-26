@@ -34,6 +34,7 @@ DuckDB · SQL · Python (data generation) · Markdown (documentation)
 Surrogate keys · Conformed dimensions · Temporal joins · 
 Join cardinality · Grain decisions · Postmortem documentation
 
+------------------------------------------------------------------------------
 
 # Project 2 — Wide vs Narrow Table Benchmark
 
@@ -66,6 +67,65 @@ python benchmark.py
 
 ## Key finding
 [Fill in after running — one sentence summarizing the headline result]
+
+## Stack
+DuckDB · SQL · Python
+
+------------------------------------------------------------------------------
+
+# Project 3 — SCD Type 2 Customer Dimension
+
+Implements a Type 2 slowly changing dimension for FinMart's customer
+data, demonstrating point-in-time historical reconstruction and the
+exact failure mode when temporal joins are incorrectly applied.
+
+## What this tests
+
+- Correct SCD Type 2 structure: surrogate keys, valid_from/valid_to
+  ranges, is_current flag
+- The two-step close/insert change operation
+- Point-in-time temporal join pattern and its failure mode
+- Revenue inflation quantification when date bounds are omitted
+- Integrity checks: no overlapping ranges, no duplicate is_current records
+
+## Scenarios
+
+| Customer | Change                  | Effective Date         | Versions |
+|----------|-------------------------|------------------------|----------|
+| 1001     | Regional relocation     | 2023-03-01             | 2        |
+| 2500     | Segment upgrade         | 2023-06-15             | 2        |
+| 5000     | Two sequential changes  | 2022-09-01, 2023-05-01 | 3        |
+
+Customer 5000 (3 versions) explicitly tests the hardest case —
+queries omitting date bounds return 3x row duplication for this customer.
+
+## Files
+
+| File | Purpose |
+|------|---------|
+| `build_scd2.py` | Builds dim_customer_scd2 from Project 1 data |
+| `build_scd2.sql` | Human-readable reference: structure + core operations |
+| `simulate_changes.sql` | Applies three change scenarios, validates integrity |
+| `point_in_time_queries.sql` | All analytical queries including broken join |
+| `point_in_time_queries.py` | Runs all queries, prints labeled output |
+| `notes.md` | Design decisions, failure mode documentation |
+
+## How to run
+
+```bash
+python build_scd2.py
+duckdb ../small-systems-projects/data/project3_scd2.duckdb \
+    < simulate_changes.sql
+python point_in_time_queries.py
+```
+
+## Key finding
+
+A temporal join omitting date bounds inflates revenue by exactly the
+number of SCD2 versions per customer. This is silent — the query
+completes without error and produces plausible-looking numbers.
+Detection requires comparing against a known baseline or row count
+check before and after the join.
 
 ## Stack
 DuckDB · SQL · Python
