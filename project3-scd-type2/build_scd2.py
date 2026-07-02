@@ -9,6 +9,10 @@ import os
 # rather than overwriting the existing one, preserving full history
 # for point-in-time reconstruction.
 #
+# Project 3 is built as a standalone database. The fact table and
+# unchanged dimensions are copied from Project 1 so this project can be
+# run independently without modifying the original warehouse.
+#
 # Customer attributes are deterministically generated from customer_id
 # for reproducibility — the same input always produces the same dimension.
 #
@@ -26,8 +30,16 @@ con = duckdb.connect(SCD2_DB)
 print("Attaching Project 1 database...")
 con.execute(f"ATTACH '{SOURCE_DB}' AS src (READ_ONLY)")
 
-print("Copying fact and supporting tables unchanged...")
-con.execute("CREATE OR REPLACE TABLE fct_orders  AS SELECT * FROM src.fct_orders")
+print("Copying fact and supporting tables, slightly modifying...")
+con.execute("""
+    CREATE OR REPLACE TABLE fct_orders AS
+    SELECT
+        f.*,
+        c.customer_id
+    FROM src.fct_orders f
+    JOIN src.dim_customer c
+        ON f.customer_key = c.customer_key
+    """)
 con.execute("CREATE OR REPLACE TABLE dim_date    AS SELECT * FROM src.dim_date")
 con.execute("CREATE OR REPLACE TABLE dim_product AS SELECT * FROM src.dim_product")
 
@@ -40,12 +52,9 @@ con.execute("DETACH src")
 # from 2022-01-01. valid_to = NULL means currently active.
 #
 # fct_orders stores customer_id (natural key), not a version-specific
-# surrogate key. Because no SCD2 surrogate exists in the fact table,
-# all point-in-time joins must use customer_id together with the
-# validity date bounds (valid_from, valid_to). This is the standard
-# pattern when the fact table was built before Type 2 history was
-# introduced — the natural key join with date bounds is the correct
-# and only approach available.
+# surrogate key. Because no surrogate key exists, all point-in-time joins 
+# must use customer_id together with the validity date bounds 
+# (valid_from, valid_to). 
 # ---------------------------------------------------------------------------
 
 print("Building dim_customer_scd2 (initial load)...")
@@ -159,8 +168,8 @@ counts = con.execute("""
     SELECT
         COUNT(*)                                                  AS total_rows,
         COUNT(DISTINCT customer_id)                               AS distinct_customers,
-        SUM(CASE WHEN is_current    THEN 1 ELSE 0 END)           AS current_records,
-        SUM(CASE WHEN valid_to IS NULL THEN 1 ELSE 0 END)        AS open_records
+        SUM(CASE WHEN is_current    THEN 1 ELSE 0 END)            AS current_records,
+        SUM(CASE WHEN valid_to IS NULL THEN 1 ELSE 0 END)         AS open_records
     FROM dim_customer_scd2
 """).fetchdf()
 

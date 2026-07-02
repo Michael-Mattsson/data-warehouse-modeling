@@ -1,7 +1,6 @@
 -- =============================================================================
 -- SCD Type 2 Customer Dimension — Reference SQL
 -- =============================================================================
--- Human-readable reference for the logic executed by build_scd2.py.
 -- Explains the SCD Type 2 structure and the three core operations:
 --   1. Initial load
 --   2. Applying a change (close old record, insert new record)
@@ -13,9 +12,8 @@
 -- SCD Type 2 structure
 --
 -- customer_key:  surrogate key — unique per row, not per customer.
---                The same customer_id appears in multiple rows after changes.
---                This is intentional — each row represents one version of
---                the customer's attributes over a specific time range.
+--                Each row represents one version of the customer's
+--                attributes over a specific time range.
 --
 -- valid_from:    the date this version became effective.
 -- valid_to:      the date this version was superseded.
@@ -24,14 +22,17 @@
 -- is_current:    convenience flag. Equivalent to WHERE valid_to IS NULL
 --                but faster to filter on and more readable in queries.
 --
--- Why surrogate key instead of customer_id as FK in fct_orders:
+-- Why does fct_orders use customer_id instead of customer_key?
 --   If fct_orders stores customer_id (natural key), the temporal join
 --   must always include date bounds — missing them causes row duplication.
 --   If fct_orders stores customer_key (surrogate, version-specific), the
---   join is always correct by construction — each order links to exactly
---   one customer version. Project 1's fact table stores customer_id. Because 
---   no version-specific surrogate key exists in the fact table, point-in-time 
---   joins must use the natural key together with the validity dates.
+--   join is always correct by construction because each order links to
+--   exactly one customer version.
+--
+--   Project 1's fact table already stores customer_id. This project extends
+--   that existing schema rather than rebuilding the fact table, so
+--   point-in-time joins use customer_id together with the validity dates
+--   to identify the correct customer version.
 -- -----------------------------------------------------------------------------
 
 CREATE OR REPLACE TABLE dim_customer_scd2 (
@@ -47,9 +48,9 @@ CREATE OR REPLACE TABLE dim_customer_scd2 (
 
 
 -- -----------------------------------------------------------------------------
--- Core SCD Type 2 operation: applying a customer attribute change
+-- SCD Type 2 operation: applying a customer attribute change
 --
--- Two-step process — must be executed in order:
+-- Two-step process — executed in order:
 --   Step 1: Close the current record (set valid_to, clear is_current flag)
 --   Step 2: Insert a new record with the updated attributes
 --
@@ -58,8 +59,8 @@ CREATE OR REPLACE TABLE dim_customer_scd2 (
 --   Old record: valid_from = 2022-01-01, valid_to = 2023-06-14
 --   New record: valid_from = 2023-06-15, valid_to = NULL
 --
--- A temporal join on order_date will match exactly one record per customer
--- per date with no gaps and no overlaps.
+-- By doing this, a temporal join on order_date will match exactly one record 
+-- per customer per date with no gaps and no overlaps.
 -- -----------------------------------------------------------------------------
 
 -- Step 1: Close the existing active record
@@ -86,10 +87,10 @@ SELECT
 
 
 -- -----------------------------------------------------------------------------
--- The correct temporal join pattern
+-- Correct temporal join
 --
--- The date bounds on the JOIN are not optional — omitting them causes
--- row duplication when a customer has multiple SCD2 records.
+-- Omitting date bounds in the JOIN causes row duplication when a customer
+-- has multiple SCD2 records.
 -- -----------------------------------------------------------------------------
 
 SELECT
@@ -107,7 +108,7 @@ JOIN dim_customer_scd2 c
 
 
 -- -----------------------------------------------------------------------------
--- The incorrect join — what row duplication looks like
+-- The incorrect join (row duplication))
 --
 -- Joining on natural key without date bounds returns one row per SCD2
 -- version per order. A customer with 3 changes has 4 SCD2 records —
@@ -123,6 +124,6 @@ SELECT
     c.region
 FROM fct_orders o
 JOIN dim_customer_scd2 c
-    ON o.customer_id = c.customer_id   -- missing date bounds
+    ON o.customer_id = c.customer_id
 -- Result: row count = orders × SCD2 versions per customer
 -- Revenue is inflated by the average number of SCD2 records per customer
