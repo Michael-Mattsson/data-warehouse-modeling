@@ -30,17 +30,10 @@ con = duckdb.connect(SCD2_DB)
 print("Attaching Project 1 database...")
 con.execute(f"ATTACH '{SOURCE_DB}' AS src (READ_ONLY)")
 
-print("Copying fact and supporting tables, slightly modifying...")
-con.execute("""
-    CREATE OR REPLACE TABLE fct_orders AS
-    SELECT
-        f.*,
-        c.customer_id
-    FROM src.fct_orders f
-    JOIN src.dim_customer c
-        ON f.customer_key = c.customer_key
-    """)
+print("Copying fact and supporting tables unchanged...")
+con.execute("CREATE OR REPLACE TABLE fct_orders  AS SELECT * FROM src.fct_orders")
 con.execute("CREATE OR REPLACE TABLE dim_date    AS SELECT * FROM src.dim_date")
+con.execute("CREATE OR REPLACE TABLE dim_customer AS SELECT * FROM src.dim_customer")
 con.execute("CREATE OR REPLACE TABLE dim_product AS SELECT * FROM src.dim_product")
 
 con.execute("DETACH src")
@@ -61,25 +54,13 @@ print("Building dim_customer_scd2 (initial load)...")
 con.execute("""
 CREATE OR REPLACE TABLE dim_customer_scd2 AS
 WITH base_customers AS (
-    SELECT DISTINCT
-        o.customer_id,
-        CASE
-            WHEN o.customer_id % 4 = 0 THEN 'North'
-            WHEN o.customer_id % 4 = 1 THEN 'South'
-            WHEN o.customer_id % 4 = 2 THEN 'East'
-            ELSE                             'West'
-        END AS region,
-        CASE
-            WHEN o.customer_id % 3 = 0 THEN 'Finland'
-            WHEN o.customer_id % 3 = 1 THEN 'Sweden'
-            ELSE                             'Norway'
-        END AS country,
-        CASE
-            WHEN o.customer_id % 10 < 6 THEN 'Consumer'
-            WHEN o.customer_id % 10 < 9 THEN 'Business'
-            ELSE                              'Enterprise'
-        END AS segment
-    FROM fct_orders o
+    SELECT
+        customer_id,
+        region,
+        country,
+        segment
+    FROM dim_customer
+)
 )
 SELECT
     ROW_NUMBER() OVER (ORDER BY customer_id)  AS customer_key,
