@@ -132,7 +132,7 @@ scd2_versions AS (
 )
 SELECT
     c.customer_id,
-    v.version_count           AS scd2_versions,
+    v.version_count               AS scd2_versions,
     c.correct_row_count,
     b.inflated_row_count,
     ROUND(c.correct_revenue, 2)   AS correct_revenue,

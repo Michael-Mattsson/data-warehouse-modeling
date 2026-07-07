@@ -30,8 +30,19 @@ con = duckdb.connect(SCD2_DB)
 print("Attaching Project 1 database...")
 con.execute(f"ATTACH '{SOURCE_DB}' AS src (READ_ONLY)")
 
-print("Copying fact and supporting tables unchanged...")
-con.execute("CREATE OR REPLACE TABLE fct_orders  AS SELECT * FROM src.fct_orders")
+print("Copying fact and supporting tables, adding additional columns to fact table...")
+con.execute("""
+CREATE OR REPLACE TABLE fct_orders AS
+SELECT
+    f.*,
+    d.date AS order_date,
+    c.customer_id
+FROM src.fct_orders f
+JOIN src.dim_date d
+    ON f.date_key = d.date_key
+JOIN src.dim_customer c
+    ON f.customer_key = c.customer_key
+""")
 con.execute("CREATE OR REPLACE TABLE dim_date    AS SELECT * FROM src.dim_date")
 con.execute("CREATE OR REPLACE TABLE dim_customer AS SELECT * FROM src.dim_customer")
 con.execute("CREATE OR REPLACE TABLE dim_product AS SELECT * FROM src.dim_product")
@@ -60,7 +71,6 @@ WITH base_customers AS (
         country,
         segment
     FROM dim_customer
-)
 )
 SELECT
     ROW_NUMBER() OVER (ORDER BY customer_id)  AS customer_key,

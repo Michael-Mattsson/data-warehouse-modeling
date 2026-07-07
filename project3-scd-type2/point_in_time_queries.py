@@ -22,7 +22,7 @@ def run(label, query, limit=None):
     print(f"\n{'='*65}")
     print(f"  {label}")
     print(f"{'='*65}")
-    if limit:
+    if limit is not None:
         query = f"SELECT * FROM ({query}) sub LIMIT {limit}"
     result = con.execute(query).fetchdf()
     print(result.to_string(index=False))
@@ -38,9 +38,19 @@ run("SCD2 dimension overview — version counts per customer", """
         COUNT(DISTINCT customer_id)                              AS distinct_customers,
         ROUND(COUNT(*)::NUMERIC / COUNT(DISTINCT customer_id), 4)
                                                                  AS avg_versions_per_customer,
-        SUM(CASE WHEN is_current THEN 1 ELSE 0 END)             AS current_records,
-        SUM(CASE WHEN valid_to IS NULL THEN 1 ELSE 0 END)       AS open_records
+        SUM(CASE WHEN is_current THEN 1 ELSE 0 END)              AS current_records,
+        SUM(CASE WHEN valid_to IS NULL THEN 1 ELSE 0 END)        AS open_records
     FROM dim_customer_scd2
+""")
+
+run("Changed customers — version counts", """
+    SELECT
+        customer_id,
+        COUNT(*) AS version_count
+    FROM dim_customer_scd2
+    GROUP BY customer_id
+    HAVING COUNT(*) > 1
+    ORDER BY version_count DESC, customer_id;
 """)
 
 run("Changed customers — full version history", """
@@ -145,7 +155,7 @@ run("Customer 5000 — segment at time of each order", """
         o.order_id,
         o.order_date,
         ROUND(o.net_revenue, 2) AS net_revenue,
-        c.segment   AS segment_at_order,
+        c.segment               AS segment_at_order,
         c.valid_from,
         c.valid_to
     FROM fct_orders o

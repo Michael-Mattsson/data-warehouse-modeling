@@ -29,7 +29,10 @@ SELECT * FROM (VALUES
 
 -- -----------------------------------------------------------------------------
 -- Section 2: Hash-based change detection
--- Compare incoming attribute hash against current dimension hash.
+-- Compare incoming attribute hash against current dimension hash. Comparing
+-- hashes is more efficient than comparing each attribute individually, and it
+-- allows for easy extension if new attributes are added to the dimension.
+-- MD5 is fast, easy to compute and is available in all major databases.
 -- Rows where hashes differ require a new SCD2 version.
 -- -----------------------------------------------------------------------------
 
@@ -37,7 +40,7 @@ WITH current_state AS (
     SELECT
         customer_id,
         region, country, segment,
-        MD5(CONCAT(region, '|', country, '|', segment)) AS current_hash
+        MD5(CONCAT_WS('|', region, country, segment)) AS current_hash
     FROM dim_customer_scd2
     WHERE is_current = TRUE
 ),
@@ -45,14 +48,16 @@ incoming_hashed AS (
     SELECT
         customer_id,
         region, country, segment, change_date,
-        MD5(CONCAT(region, '|', country, '|', segment)) AS incoming_hash
+        MD5(CONCAT_WS('|', region, country, segment)) AS incoming_hash
     FROM incoming_customers
 )
 SELECT
     i.customer_id,
     i.change_date,
-    c.region        AS current_region,    i.region   AS incoming_region,
-    c.segment       AS current_segment,   i.segment  AS incoming_segment,
+    c.region        AS current_region,
+    i.region        AS incoming_region,
+    c.segment       AS current_segment,
+    i.segment       AS incoming_segment,
     CASE
         WHEN c.current_hash != i.incoming_hash
         THEN 'CHANGE DETECTED'

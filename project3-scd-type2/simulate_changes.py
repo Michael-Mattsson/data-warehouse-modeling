@@ -7,7 +7,7 @@ import duckdb
 # following a realistic ETL sequence:
 #
 #   1. Define incoming customer update feed (simulates source system data)
-#   2. Hash comparison — detect which customers actually changed
+#   2. Hash comparison — detect which customer attributes changed
 #   3. Apply SCD2 updates for detected changes only
 #   4. Run integrity checks
 #
@@ -87,6 +87,10 @@ incoming_updates = [
 # This detection step mirrors how production ETL frameworks (dbt snapshots,
 # Fivetran, custom Spark jobs) identify SCD2 changes without scanning
 # full history on every run.
+
+# Using parameter placeholders (?) keeps values separate from SQL,
+# preventing SQL injection and allowing the database to safely handle
+# quoting and escaping of input values.
 # ---------------------------------------------------------------------------
 
 def get_current_state(customer_id):
@@ -110,7 +114,7 @@ def get_current_state(customer_id):
 def compute_hash(region, country, segment):
     """Compute attribute hash for change detection."""
     result = con.execute(
-        "SELECT MD5(CONCAT(?, '|', ?, '|', ?))",
+        "SELECT MD5(CONCAT_WS('|', ?, ?, ?))",
         [region, country, segment]
     ).fetchone()[0]
     return result
@@ -147,10 +151,13 @@ for update in incoming_updates:
     incoming_hash = compute_hash(resolved["region"], resolved["country"], resolved["segment"])
 
     changed = current_hash != incoming_hash
-    status  = "YES — new version required" if changed else "no change"
-    print(f"{update['scenario']:<30} {update['customer_id']:>10} {status:>16}")
 
     if changed:
+        print(f"{update['scenario']:<30} {update['customer_id']:>10}  CHANGE DETECTED")
+        print(f"    Current : Region={current['region']}, Country={current['country']}, Segment={current['segment']}")
+        print(f"    Incoming: Region={resolved['region']}, Country={resolved['country']}, Segment={resolved['segment']}")
+        print()
+
         changes_to_apply.append({
             "customer_id":   update["customer_id"],
             "change_date":   update["change_date"],
@@ -162,11 +169,15 @@ for update in incoming_updates:
         })
         next_key += 1
 
+    else:
+        print(f"{update['scenario']:<30} {update['customer_id']:>10}  no change")
+        print()
+
 
 # ---------------------------------------------------------------------------
 # Step 3: Apply SCD2 updates for detected changes only
 #
-# Each detected change follows the two-step pattern:
+# Each detected change follows the two-step pattern ('YYYY-MM-DD' format):
 #   1. Close current record: valid_to = change_date - 1, is_current = FALSE
 #   2. Insert new record:    valid_from = change_date, valid_to = NULL, is_current = TRUE
 #
@@ -176,10 +187,7 @@ for update in incoming_updates:
 
 def apply_customer_change(customer_id, change_date, region, country,
                            segment, new_key):
-    """
-    Apply a single SCD2 change: close current record, insert new version.
-    change_date: string in 'YYYY-MM-DD' format.
-    """
+
     # Step 1: close current record
     con.execute("""
         UPDATE dim_customer_scd2
@@ -262,14 +270,18 @@ assert_check(
 # Summary
 summary = con.execute("""
     SELECT
-        COUNT(*)                                           AS total_rows,
-        COUNT(DISTINCT customer_id)                        AS distinct_customers,
-        SUM(CASE WHEN is_current THEN 1 ELSE 0 END)       AS current_records,
-        MAX(
-            SELECT COUNT(*) FROM dim_customer_scd2 g
-            WHERE g.customer_id = dim_customer_scd2.customer_id
-        )                                                  AS max_versions_one_customer
-    FROM dim_customer_scd2
+        COUNT(*)                                    AS total_rows,
+        COUNT(DISTINCT customer_id)                 AS distinct_customers,
+        SUM(CASE WHEN is_current THEN 1 ELSE 0 END) AS current_records,
+        (
+            SELECT MAX(version_count)
+            FROM (
+                SELECT COUNT(*) AS version_count
+                FROM dim_customer_scd2
+                GROUP BY customer_id
+            )
+        )                                           AS max_versions_one_customer
+    FROM dim_customer_scd2;
 """).fetchdf()
 
 print("\n--- Post-Simulation Summary ---")
