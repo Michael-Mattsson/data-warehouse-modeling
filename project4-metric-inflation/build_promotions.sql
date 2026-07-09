@@ -1,8 +1,6 @@
 -- =============================================================================
 -- Metric Inflation — Promotions Table (Reference SQL)
 -- =============================================================================
--- Human-readable reference for build_promotions.py.
---
 -- Promotions distribution is deliberately controlled rather than purely
 -- random, so the resulting inflation factors are predictable and
 -- reproducible:
@@ -47,7 +45,7 @@ FROM expanded;
 
 
 -- -----------------------------------------------------------------------------
--- The broken query — what the junior analyst wrote
+-- The broken query
 --
 -- No grain guard on the join. Every order for a customer joins to every
 -- one of that customer's active promotions. A customer with 3 promotions

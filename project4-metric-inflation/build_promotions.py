@@ -4,12 +4,11 @@ import os
 # ---------------------------------------------------------------------------
 # Metric Inflation — Promotions Table Builder
 #
-# Generates a promotions table with a deliberately realistic multi-promo
+# Generates a promotions table with a deliberately controlled multi-promo
 # distribution: most customers have 0 or 1 active promotion, a smaller
-# group has 2, and a small group has 3+. This mirrors how the bug actually
-# happens in production — a promotions feature is added for a subset of
-# customers running concurrent campaigns, and the join is written without
-# a grain guard.
+# group has 2, and a small group has 3+. A promotions feature is added for 
+# a subset of customers running concurrent campaigns, and the join is 
+# written without a grain guard.
 #
 # Input:  ../small-systems-projects/data/project1_finmart.duckdb
 # Output: ../small-systems-projects/data/project4_inflation.duckdb
@@ -25,8 +24,19 @@ con = duckdb.connect(INFLATION_DB)
 print("Attaching Project 1 database...")
 con.execute(f"ATTACH '{SOURCE_DB}' AS src (READ_ONLY)")
 
-print("Copying fact and dimension tables unchanged...")
-con.execute("CREATE OR REPLACE TABLE fct_orders   AS SELECT * FROM src.fct_orders")
+print("Copying warehouse tables and enriching the fact table with business keys...")
+con.execute("""
+CREATE OR REPLACE TABLE fct_orders AS
+SELECT
+    f.*,
+    d.date AS order_date,
+    c.customer_id
+FROM src.fct_orders f
+JOIN src.dim_date d
+    ON f.date_key = d.date_key
+JOIN src.dim_customer c
+    ON f.customer_key = c.customer_key
+""")
 con.execute("CREATE OR REPLACE TABLE dim_customer AS SELECT * FROM src.dim_customer")
 con.execute("CREATE OR REPLACE TABLE dim_product  AS SELECT * FROM src.dim_product")
 con.execute("CREATE OR REPLACE TABLE dim_date     AS SELECT * FROM src.dim_date")

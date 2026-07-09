@@ -83,18 +83,26 @@ run("Step 3: Aggregate revenue inflation — correct vs broken join", """
 
 run("Worst-affected customers — inflation factor by promo count", """
     WITH correct AS (
-        SELECT o.customer_id, SUM(o.net_revenue) AS correct_revenue, COUNT(*) AS correct_rows
+        SELECT 
+            o.customer_id, 
+            SUM(o.net_revenue)  AS correct_revenue, 
+            COUNT(*)            AS correct_rows
         FROM fct_orders o
         GROUP BY o.customer_id
     ),
     broken AS (
-        SELECT o.customer_id, SUM(o.net_revenue) AS inflated_revenue, COUNT(*) AS inflated_rows
+        SELECT 
+            o.customer_id, 
+            SUM(o.net_revenue)  AS inflated_revenue, 
+            COUNT(*)            AS inflated_rows
         FROM fct_orders o
         LEFT JOIN promotions p ON o.customer_id = p.customer_id
         GROUP BY o.customer_id
     ),
     promo_counts AS (
-        SELECT customer_id, COUNT(*) AS promo_count
+        SELECT 
+            customer_id, 
+            COUNT(*)            AS promo_count
         FROM promotions GROUP BY customer_id
     )
     SELECT
@@ -105,7 +113,7 @@ run("Worst-affected customers — inflation factor by promo count", """
         ROUND(b.inflated_revenue, 2)                                AS inflated_revenue,
         ROUND(b.inflated_revenue / NULLIF(c.correct_revenue, 0), 2) AS inflation_factor
     FROM correct c
-    JOIN broken b       ON c.customer_id = b.customer_id
+    JOIN broken b ON c.customer_id = b.customer_id
     LEFT JOIN promo_counts pc ON c.customer_id = pc.customer_id
     WHERE COALESCE(pc.promo_count, 0) >= 2
     ORDER BY inflation_factor DESC

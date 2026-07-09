@@ -51,10 +51,8 @@ ORDER BY promo_count;
 -- -----------------------------------------------------------------------------
 -- Step 3: Quantify inflation correctly
 --
--- Correct revenue is total net_revenue with NO join at all — this is
--- the accounting-system truth, since revenue does not depend on
--- promotions in any way. Inflated revenue is what the broken join
--- actually returns. The difference is the inflation.
+-- Correct revenue is total net_revenue with NO join at all. Inflated revenue 
+-- is what the broken join actually returns. The difference is the inflation.
 -- -----------------------------------------------------------------------------
 
 WITH correct_revenue AS (
