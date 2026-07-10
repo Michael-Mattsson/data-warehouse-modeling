@@ -8,7 +8,7 @@
 
 
 -- -----------------------------------------------------------------------------
--- Fix 1: Deduplicate promotions to one row per customer before joining
+-- Fix 1: Select a single promotion per customer based on business rules.
 -- Use when: only the most recent/relevant promotion matters for the query,
 -- and other promotion details can be discarded.
 --
@@ -62,10 +62,9 @@ LEFT JOIN promo_summary p ON o.customer_id = p.customer_id;
 -- -----------------------------------------------------------------------------
 -- Fix 3: Change fact table grain — attach promo_key at ingestion time
 -- Use when: promotion attribution needs to persist at the order-line grain
--- (e.g. "which promotion drove this specific order") rather than being
--- collapsed to a customer-level summary. Requires the business rule for
--- attribution to be decided upfront (e.g. "most recent promotion active
--- at order time" — itself a temporal join, same pattern as Project 3).
+-- Requires the business rule for attribution to be decided upfront 
+-- (e.g. "most recent promotion active at order time" — itself a temporal join, 
+-- same pattern as Project 3).
 -- -----------------------------------------------------------------------------
 
 WITH order_promo_attribution AS (
@@ -81,7 +80,8 @@ WITH order_promo_attribution AS (
     FROM fct_orders o
     LEFT JOIN promotions p
         ON  o.customer_id = p.customer_id
-        AND p.promo_start <= (SELECT date FROM dim_date d WHERE d.date_key = o.date_key)
+        AND o.order_date >= p.promo_start
+        AND o.order_date <  p.promo_end
 )
 SELECT SUM(net_revenue) AS total_revenue
 FROM order_promo_attribution

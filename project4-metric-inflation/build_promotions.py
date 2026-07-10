@@ -89,13 +89,21 @@ SELECT
         WHEN 1 THEN 'PROMO_B'
         ELSE        'PROMO_C'
     END AS promo_code,
+
     CASE promo_index
         WHEN 0 THEN 0.10
         WHEN 1 THEN 0.15
         ELSE        0.20
     END AS discount_pct,
-    DATE '2023-01-01' + CAST(HASH(customer_id, promo_index) % 365 AS INT) * INTERVAL 1 DAY
-        AS promo_start
+
+    DATE '2023-01-01'
+        + CAST(HASH(customer_id, promo_index) % 300 AS INT) * INTERVAL 1 DAY
+        AS promo_start,
+
+    DATE '2023-01-01'
+        + CAST(HASH(customer_id, promo_index) % 300 AS INT) * INTERVAL 1 DAY
+        + INTERVAL 90 DAY
+        AS promo_end
 FROM expanded
 """)
 

@@ -81,7 +81,8 @@ fix3 = get_revenue(
         FROM fct_orders o
         LEFT JOIN promotions p
             ON  o.customer_id = p.customer_id
-            AND p.promo_start <= (SELECT date FROM dim_date d WHERE d.date_key = o.date_key)
+            AND o.order_date >= p.promo_start
+            AND o.order_date < p.promo_end
     )
     SELECT SUM(net_revenue) FROM order_promo_attribution WHERE rn = 1
     """
