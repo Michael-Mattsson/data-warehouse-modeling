@@ -104,3 +104,51 @@ lesson as Project 4's join inflation — an operation that's supposed to
 be small silently becomes large because of an unhandled edge case, and
 the fix in both cases is a row-count sanity check before trusting the
 output.
+
+---
+
+## Production Lessons
+
+**Observability is not optional overhead.** `snapshot_job_history`
+costs nothing extra to build but is the entire difference between
+"the pipeline is broken" being an alert you get in five minutes versus
+a discrepancy finance notices three weeks later. `checkpoint_night`
+specifically — distinct from the calendar night — is what makes it
+possible to answer "what can I currently trust" without re-deriving it
+from scratch every time.
+
+**Retries are not automatically safe.** The instinct to "just rerun
+the failed job" is correct, but only if the job was designed to be
+idempotent in the first place. A naive retry of a job that partially
+or fully succeeded, but whose success wasn't acknowledged, produces
+duplicates — silently, since the job "succeeds" on rerun and writes
+data, just the wrong amount of it. This is the exact same failure mode
+Stripe's idempotency-key pattern solves for API calls, applied here
+to a batch pipeline instead.
+
+**Validation has to be designed to catch specific failure modes, not
+just exist in the abstract.** A validation suite that doesn't know
+what kind of bug it's looking for tends to check things that are easy
+to check rather than things that are likely to break. Each of the four
+checks here was chosen because it catches a bug this project actually
+produced — duplicate detection catches unsafe retries, delta-size
+anomaly catches a lost checkpoint. That specificity is what makes a
+validation gate worth the code it costs to write.
+
+---
+
+## Why This Matters
+
+A senior analyst is rarely the one who builds the orchestrator or
+writes the CDC connector. But being able to look at a stale dashboard
+and ask the right diagnostic question — is this a missing snapshot, a
+stalled checkpoint, a duplicate from a retry, or a genuine data issue
+— is what separates someone who can debug production analytics from
+someone who can only build clean pipelines when nothing goes wrong.
+
+Every one of this project's four new files exists because something
+in the first two files could silently fail in a way a dashboard
+consumer would never see directly — only feel, as a wrong number.
+That gap between "the pipeline ran" and "the pipeline's output is
+trustworthy" is exactly the territory this entire roadmap is trying
+to build fluency in.

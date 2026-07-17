@@ -1,5 +1,6 @@
 import duckdb
 import os
+import datetime
 
 # ---------------------------------------------------------------------------
 # Snapshotting — History Builder
@@ -24,11 +25,17 @@ import os
 # periodic or incremental, is written for that night. This sets up the
 # stale/missing snapshot debugging task in periodic_vs_incremental.py.
 #
+# Job execution metadata (snapshot_job_history) is tracked alongside the
+# data itself — job_id, status, row counts, and for incremental jobs,
+# checkpoint_night: the night whose state is the current trusted
+# comparison baseline. checkpoint_night only advances on success, which
+# is what makes the defensive incremental design correct under failure.
+#
 # Input:  ../small-systems-projects/data/project3_scd2.duckdb
 # Output: ../small-systems-projects/data/project5_snapshots.duckdb
 # ---------------------------------------------------------------------------
 
-SOURCE_DB    = "../small-systems-projects/data/project3_scd2.duckdb"
+SOURCE_DB    = "../small-systems-projects/data/project1_finmart.duckdb"
 SNAPSHOT_DB  = "../small-systems-projects/data/project5_snapshots.duckdb"
 
 NUM_NIGHTS   = 30
@@ -47,6 +54,8 @@ con = duckdb.connect(SNAPSHOT_DB)
 # top of Project 3's final state, treating "today" as Night 1 of a fresh
 # nightly snapshot job.
 # ---------------------------------------------------------------------------
+
+SOURCE_DB = "../small-systems-projects/data/project3_scd2.duckdb"
 
 print("Attaching Project 3 database...")
 con.execute(f"ATTACH '{SOURCE_DB}' AS src (READ_ONLY)")
@@ -145,6 +154,55 @@ def true_state_at_night(con, night_number):
 
 
 # ---------------------------------------------------------------------------
+# Job history table
+#
+# snapshot_job_history tracks execution metadata for every job run —
+# periodic and incremental alike — not just the data each job produces.
+#
+#   job_id            — unique per job execution, orchestrator-assigned.
+#   checkpoint_night   — for incremental jobs, the night whose state is now
+#                        the "last known good" comparison baseline after
+#                        this job completes. On success, checkpoint_night
+#                        = night_number. On failure, checkpoint_night =
+#                        whatever it already was — it does NOT advance,
+#                        which is exactly what makes the defensive
+#                        incremental design (diffing against last
+#                        successful capture) correct. Not a meaningful
+#                        concept for periodic jobs, since each periodic
+#                        snapshot is independent — left NULL for those rows.
+#   started_at/finished_at — synthetic but deterministic timestamps,
+#                        simulating a nightly job scheduled at 2:00 AM.
+# ---------------------------------------------------------------------------
+
+con.execute("""
+CREATE OR REPLACE TABLE snapshot_job_history (
+    job_id           INTEGER,
+    night_number     INTEGER,
+    snapshot_type    VARCHAR,
+    status           VARCHAR,
+    rows_processed   INTEGER,
+    checkpoint_night INTEGER,
+    started_at       TIMESTAMP,
+    finished_at      TIMESTAMP
+)
+""")
+
+job_id_counter = 0
+BASE_DATE = datetime.datetime(2024, 1, 1, 2, 0, 0)  # nightly job at 2:00 AM
+
+def log_job(night, snapshot_type, status, rows_processed, checkpoint_night):
+    global job_id_counter
+    job_id_counter += 1
+    started = BASE_DATE + datetime.timedelta(days=night - 1)
+    duration_seconds = 5 if status == "failed" else 30 + rows_processed // 50
+    finished = started + datetime.timedelta(seconds=duration_seconds)
+    con.execute("""
+        INSERT INTO snapshot_job_history VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, [job_id_counter, night, snapshot_type, status, rows_processed,
+          checkpoint_night, started, finished])
+
+
+# ---------------------------------------------------------------------------
 # Step 3: Build PERIODIC snapshots
 #
 # Every night, store a full copy of all customers as they truly are that
@@ -162,19 +220,10 @@ CREATE OR REPLACE TABLE periodic_snapshots (
     region VARCHAR, country VARCHAR, segment VARCHAR
 )
 """)
-con.execute("""
-CREATE OR REPLACE TABLE snapshot_log (
-    night_number INTEGER, snapshot_type VARCHAR,
-    status VARCHAR, row_count INTEGER
-)
-""")
 
 for night in range(1, NUM_NIGHTS + 1):
     if night == FAILED_NIGHT:
-        con.execute(
-            "INSERT INTO snapshot_log VALUES (?, 'periodic', 'failed', 0)",
-            [night]
-        )
+        log_job(night, "periodic", "failed", 0, None)
         continue
 
     state = true_state_at_night(con, night)
@@ -184,10 +233,7 @@ for night in range(1, NUM_NIGHTS + 1):
         SELECT {night} AS night_number, customer_id, region, country, segment
         FROM state_df
     """)
-    con.execute(
-        "INSERT INTO snapshot_log VALUES (?, 'periodic', 'success', ?)",
-        [night, len(state)]
-    )
+    log_job(night, "periodic", "success", len(state), None)
 
 periodic_total = con.execute("SELECT COUNT(*) FROM periodic_snapshots").fetchone()[0]
 print(f"Periodic snapshots written: {periodic_total:,} total rows across "
@@ -209,6 +255,12 @@ print(f"Periodic snapshots written: {periodic_total:,} total rows across "
 # Night 12 changes into Night 13's delta rather than losing them or
 # corrupting the comparison. See periodic_vs_incremental.py for a
 # contrasting "naive" implementation that does NOT have this property.
+#
+# last_successful_checkpoint tracks the night whose state is currently
+# trusted. It only updates when a job succeeds — on Night 12's failure
+# it is logged unchanged (still 11), and Night 13's success advances it
+# directly to 13, skipping 12 entirely. This is the checkpoint stall/jump
+# pattern examined in checkpoint_metadata.py.
 # ---------------------------------------------------------------------------
 
 print("\nBuilding incremental snapshots (defensive design)...")
@@ -232,12 +284,12 @@ CREATE OR REPLACE TABLE incremental_deltas (
 )
 """)
 
+last_successful_checkpoint = 1   # Night 1's base load is the starting checkpoint
+
 for night in range(2, NUM_NIGHTS + 1):
     if night == FAILED_NIGHT:
-        con.execute(
-            "INSERT INTO snapshot_log VALUES (?, 'incremental', 'failed', 0)",
-            [night]
-        )
+        # checkpoint does NOT advance — this is the defensive property
+        log_job(night, "incremental", "failed", 0, last_successful_checkpoint)
         continue
 
     true_state = true_state_at_night(con, night)
@@ -268,10 +320,8 @@ for night in range(2, NUM_NIGHTS + 1):
         WHERE tracking_state.customer_id = t.customer_id
     """)
 
-    con.execute(
-        "INSERT INTO snapshot_log VALUES (?, 'incremental', 'success', ?)",
-        [night, len(changed)]
-    )
+    last_successful_checkpoint = night
+    log_job(night, "incremental", "success", len(changed), last_successful_checkpoint)
 
 incremental_delta_rows = con.execute("SELECT COUNT(*) FROM incremental_deltas").fetchone()[0]
 incremental_base_rows  = con.execute("SELECT COUNT(*) FROM incremental_base_snapshot").fetchone()[0]

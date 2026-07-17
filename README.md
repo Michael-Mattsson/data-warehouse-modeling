@@ -242,3 +242,46 @@ aggregation—is the correct solution.
 
 ## Stack
 DuckDB · SQL · Python
+
+
+----------------------------------------------------------------------------------------
+
+
+# Project 5 - Snapshotting
+
+## Files
+
+| File | Purpose |
+|------|---------|
+| `build_snapshot_history.py` | Builds 30 nights of periodic + incremental snapshots, with job history metadata including checkpoint tracking |
+| `build_snapshot_history.sql` | Reference SQL for the build logic |
+| `periodic_vs_incremental.py` | Storage comparison, gap detection, reconstruction, naive vs defensive delta demo, closing health summary |
+| `periodic_vs_incremental.sql` | Reference SQL for the analysis queries |
+| `checkpoint_metadata.py` | Reports on checkpoint evolution from job history — no resimulation |
+| `checkpoint_metadata.sql` | Reference SQL |
+| `idempotent_retry.py` | Demonstrates unsafe retry duplication and the idempotent upsert fix |
+| `idempotent_retry.sql` | Reference SQL, including the MERGE INTO equivalent |
+| `pipeline_validation.py` | Validation gate wired to catch this project's own bugs |
+| `pipeline_validation.sql` | Reference SQL |
+| `architecture.md` | Component diagram and glossary |
+| `notes.md` | Design rationale, production lessons, connections to prior projects |
+
+## How to run
+
+```bash
+python build_snapshot_history.py
+python periodic_vs_incremental.py
+python checkpoint_metadata.py
+python idempotent_retry.py
+python pipeline_validation.py
+```
+
+## Key finding
+
+Periodic and incremental snapshotting fail differently under a missing
+night, and a naively built incremental job or an unsafely retried job
+can each corrupt data silently — while still reporting success. The
+fix in both cases is the same discipline: design for idempotency
+(diff against last known good state, upsert on retry) and validate
+against specific, known failure signatures rather than trusting that
+a completed job ran correctly.

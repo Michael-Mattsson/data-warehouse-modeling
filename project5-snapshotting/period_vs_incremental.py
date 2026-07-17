@@ -219,4 +219,60 @@ run("Verification — reconstructed Night 20 vs true Night 20 state (should matc
 print("  -> Expect 0 mismatches for a night where the snapshot job succeeded.")
 
 print("\nAnalysis complete.")
+
+
+# ---------------------------------------------------------------------------
+# Part 5: Pipeline Health Summary
+#
+# A closing status report, the kind a real orchestrator dashboard or a
+# scheduled Slack alert would show after a nightly run. Each check reuses
+# a query already run above — this section just packages the verdicts.
+# ---------------------------------------------------------------------------
+
+print(f"\n{'='*70}")
+print("  PIPELINE HEALTH SUMMARY")
+print(f"{'='*70}")
+
+checkpoint_current = con.execute("""
+    SELECT MAX(checkpoint_night) FROM snapshot_job_history
+    WHERE snapshot_type = 'incremental' AND status = 'success'
+""").fetchone()[0]
+print(f"  {'✓' if checkpoint_current is not None else '✗'} Checkpoint healthy "
+      f"— currently at Night {checkpoint_current}")
+
+storage_ratio = periodic_rows / incremental_rows
+print(f"  {'✓' if storage_ratio > 5 else '✗'} Storage healthy "
+      f"— incremental is {storage_ratio:.1f}x smaller than periodic")
+
+mismatch_count = con.execute("""
+    WITH true_state AS (
+        WITH ranked_changes AS (
+            SELECT customer_id, new_region,
+                   ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY night_number DESC) AS rn
+            FROM change_log WHERE night_number <= 20
+        ),
+        latest_change AS (SELECT customer_id, new_region FROM ranked_changes WHERE rn = 1)
+        SELECT b.customer_id, COALESCE(lc.new_region, b.region) AS region
+        FROM customer_baseline b
+        LEFT JOIN latest_change lc ON b.customer_id = lc.customer_id
+    ),
+    reconstructed AS (SELECT customer_id, region FROM periodic_snapshots WHERE night_number = 20)
+    SELECT COUNT(*) FROM true_state t JOIN reconstructed r
+    ON t.customer_id = r.customer_id WHERE t.region != r.region
+""").fetchone()[0]
+print(f"  {'✓' if mismatch_count == 0 else '✗'} Validation passed "
+      f"— {mismatch_count} mismatches against ground truth (Night 20 check)")
+
+duplicate_deltas = con.execute("""
+    SELECT COUNT(*) FROM (
+        SELECT customer_id, night_number FROM incremental_deltas
+        GROUP BY customer_id, night_number HAVING COUNT(*) > 1
+    )
+""").fetchone()[0]
+print(f"  {'✓' if duplicate_deltas == 0 else '✗'} No duplicate deltas "
+      f"— {duplicate_deltas} (customer_id, night_number) pairs appear more than once")
+
+print(f"{'='*70}")
+
+
 con.close()
