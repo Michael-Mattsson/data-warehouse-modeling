@@ -247,24 +247,75 @@ DuckDB · SQL · Python
 ----------------------------------------------------------------------------------------
 
 
-# Project 5 - Snapshotting
+# Project 5 — Snapshotting Architecture
+
+Compares periodic and incremental snapshotting under realistic pipeline failures, demonstrating how checkpoint tracking, idempotent retries, and validation gates prevent silent corruption while preserving historical reconstruction.
+
+## Scenario
+
+A customer source system exposes only its current state. Every night the analytics platform polls the source to preserve historical customer attributes for downstream reporting and auditing.
+
+Two snapshot strategies are evaluated:
+
+- **Periodic snapshots** — store a complete copy of customer state every night.
+- **Incremental snapshots** — store only changed rows by comparing against the latest trusted checkpoint.
+
+The project introduces realistic operational failures:
+
+- Missing snapshot nights
+- Failed incremental jobs
+- Unsafe retry behavior
+- Silent duplicate writes
+- Corrupted reconstruction baselines
+- Abnormal delta volumes
+
+## What this tests
+
+### Snapshot architecture trade-offs
+
+- Full snapshot history versus base snapshot plus delta history
+- Storage growth differences between periodic and incremental strategies
+- Historical reconstruction from complete snapshots versus replayed deltas
+- Complexity versus storage efficiency
+
+### Operational robustness
+
+- Checkpoint tracking as a recovery mechanism
+- Recovery from failed incremental jobs
+- Distinguishing calendar time from trusted state
+- Graceful degradation into stale-but-correct results
+
+### Reliability engineering
+
+- Idempotent retry design
+- Safe reruns using upserts
+- Duplicate prevention after partial failures
+- Validation gates as protection against silent corruption
+
+### Data quality validation
+
+- Row count reconciliation
+- Duplicate detection
+- Checksum validation
+- Delta anomaly detection
+- Detecting "successful but incorrect" pipeline runs
 
 ## Files
 
 | File | Purpose |
 |------|---------|
-| `build_snapshot_history.py` | Builds 30 nights of periodic + incremental snapshots, with job history metadata including checkpoint tracking |
+| `build_snapshot_history.py` | Builds 30 nights of periodic and incremental snapshots with checkpoint-aware job history |
 | `build_snapshot_history.sql` | Reference SQL for the build logic |
-| `periodic_vs_incremental.py` | Storage comparison, gap detection, reconstruction, naive vs defensive delta demo, closing health summary |
+| `periodic_vs_incremental.py` | Storage comparison, gap detection, reconstruction, defensive versus naive incremental processing, and health summary |
 | `periodic_vs_incremental.sql` | Reference SQL for the analysis queries |
-| `checkpoint_metadata.py` | Reports on checkpoint evolution from job history — no resimulation |
+| `checkpoint_metadata.py` | Reports checkpoint evolution directly from job history metadata |
 | `checkpoint_metadata.sql` | Reference SQL |
-| `idempotent_retry.py` | Demonstrates unsafe retry duplication and the idempotent upsert fix |
-| `idempotent_retry.sql` | Reference SQL, including the MERGE INTO equivalent |
-| `pipeline_validation.py` | Validation gate wired to catch this project's own bugs |
+| `idempotent_retry.py` | Demonstrates unsafe retries and the idempotent upsert solution |
+| `idempotent_retry.sql` | Reference SQL including the `MERGE INTO` equivalent |
+| `pipeline_validation.py` | Validation gate detecting duplicate, checksum, row count, and delta anomalies |
 | `pipeline_validation.sql` | Reference SQL |
-| `architecture.md` | Component diagram and glossary |
-| `notes.md` | Design rationale, production lessons, connections to prior projects |
+| `architecture.md` | Architecture diagram and glossary |
+| `notes.md` | Design rationale, production lessons, and links to previous projects |
 
 ## How to run
 
@@ -285,3 +336,11 @@ fix in both cases is the same discipline: design for idempotency
 (diff against last known good state, upsert on retry) and validate
 against specific, known failure signatures rather than trusting that
 a completed job ran correctly.
+
+## Sources
+
+- Kleppmann, M. (2017). *Designing Data-Intensive Applications*. O'Reilly Media.
+- Kimball, R., & Ross, M. (2013). *The Data Warehouse Toolkit (3rd Edition)*.
+- Kreps, J. (2014). *Questioning the Lambda Architecture*.
+- dbt Documentation — Incremental Models.
+- Apache Airflow Documentation — Task Retries and Idempotency.
