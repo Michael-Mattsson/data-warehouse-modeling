@@ -50,14 +50,11 @@ for title, query in queries:
     print(title)
     print("=" * 90)
 
-    print("QUERY BEING EXECUTED:")
-    print(query)
-    print("=" * 90)
+# Used for troubleshooting query 4
+#    print("QUERY BEING EXECUTED:")
+#    print(query)
+#    print("=" * 90)
 
     result = con.execute(query)
-
-    print("EXECUTE RESULT:", result)
-
     df = result.fetchdf()
-
     print(df.to_string(index=False))
